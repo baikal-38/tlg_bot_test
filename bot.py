@@ -66,7 +66,7 @@ async def weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i in range(len(dates)):
         # Преобразуем дату из "2025-02-19" в "02-19" (срез с 5 символа)
         short_date = dates[i][5:]  # берём символы с индекса 5 до конца
-        message += f"📅 {short_date}\ 🌡 Днём: {max_temps[i]}°C 🌙 Ночью: {min_temps[i]}°C\n"
+        message += f"🌡 {short_date}: {max_temps[i]} / {min_temps[i]}°C\n"
 
     await update.message.reply_text(message)
 
