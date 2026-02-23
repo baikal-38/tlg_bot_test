@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Токен и URL для Render
 TOKEN = os.environ.get('BOT_TOKEN')
-TOKEN = "8282281956:AAHAQ0O3JbXg6yFxK0sofZfmvX0lzi8Uaqc"
+TOKEN = "8569440409:AAGoh6HUFu3jquVunO0XN_Y3Msme24KjS4k"
 RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL')
 
 # Координаты Иркутска
