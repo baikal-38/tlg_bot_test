@@ -5,8 +5,8 @@ import io
 import socket
 import datetime
 import sys
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 
 # Логирование
@@ -23,7 +23,6 @@ RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL')
 if not TOKEN:
     load_dotenv()
     TOKEN = os.getenv("BOT_TOKEN")
-    
 
 # Координаты Иркутска
 LATITUDE = 52.2978
@@ -104,18 +103,19 @@ def get_chart_image(dates, max_temps, min_temps):
     return response.content
 
 def get_main_keyboard():
-    """Создаёт инлайн-клавиатуру с основными действиями."""
+    """Создаёт Reply-клавиатуру с основными действиями."""
     keyboard = [
-        [InlineKeyboardButton("🌤 Погода (текст)", callback_data='weather')],
-        [InlineKeyboardButton("📈 График", callback_data='chart')]
+        ["🌤 Погода (текст)"],
+        ["📈 График"]
     ]
-    return InlineKeyboardMarkup(keyboard)
+    # resize_keyboard=True подгоняет размер кнопок под экран
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def send_main_menu(chat_id, context: ContextTypes.DEFAULT_TYPE):
-    """Отправляет сообщение с главным меню."""
+    """Отправляет сообщение с главным меню (клавиатура уже видна, но можно напомнить)."""
     await context.bot.send_message(
         chat_id=chat_id,
-        text="Выберите действие:",
+        text="Выберите действие с помощью кнопок ниже:",
         reply_markup=get_main_keyboard()
     )
 
@@ -202,8 +202,6 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("💻 Платформа: **Локальная машина**")
     
     if RENDER_URL:
-        # webhook_url = f"{RENDER_URL}/{TOKEN}"
-        # lines.append(f"🌐 Webhook URL: {webhook_url}")
         lines.append(f"🌐 Режим Webhook")
     else:
         lines.append("🔄 Режим polling (webhook не используется)")
@@ -224,16 +222,14 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Отправляем результат
     await update.message.reply_text("\n".join(lines))
 
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обрабатывает нажатия на инлайн-кнопки."""
-    query = update.callback_query
-    await query.answer()  # убираем состояние загрузки на кнопке
-
-    if query.data == 'weather':
+async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обрабатывает нажатия на Reply-кнопки (текстовые сообщения)."""
+    text = update.message.text
+    if text == "🌤 Погода (текст)":
         await weather(update, context)
-    elif query.data == 'chart':
+    elif text == "📈 График":
         await chart(update, context)
+    # Другие варианты текста игнорируем (можно добавить ответ по умолчанию)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
@@ -246,7 +242,13 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("status", status))
-    app.add_handler(CallbackQueryHandler(button_handler))
+
+    # Хендлер для Reply-кнопок – ловим точный текст кнопок
+    app.add_handler(MessageHandler(
+        filters.Text(["🌤 Погода (текст)", "📈 График"]),
+        handle_menu_buttons
+    ))
+
     app.add_error_handler(error_handler)
 
     if RENDER_URL:
