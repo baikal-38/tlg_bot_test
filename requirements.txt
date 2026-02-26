@@ -1,4 +1,4 @@
-python-telegram-bot==20.7
+python-telegram-bot[webhooks]==20.7
 matplotlib==3.8.0
 python-dotenv==1.0.0
 requests==2.31.0
