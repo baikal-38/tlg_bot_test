@@ -202,8 +202,9 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("💻 Платформа: **Локальная машина**")
     
     if RENDER_URL:
-        webhook_url = f"{RENDER_URL}/{TOKEN}"
-        lines.append(f"🌐 Webhook URL: {webhook_url}")
+        # webhook_url = f"{RENDER_URL}/{TOKEN}"
+        # lines.append(f"🌐 Webhook URL: {webhook_url}")
+        lines.append(f"🌐 Режим Webhook")
     else:
         lines.append("🔄 Режим polling (webhook не используется)")
     
