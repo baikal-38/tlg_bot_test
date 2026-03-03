@@ -142,7 +142,7 @@ async def weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = "🌤 Прогноз погоды в Иркутске:\n\n"
         for i in range(len(dates)):
             short_date = dates[i][5:]  # ММ-ДД
-            message += f"📅 {short_date}: {max_temps[i]}/{min_temps[i]}°C\n"
+            message += f"📅 {short_date}: {min_temps[i]}/{max_temps[i]}°C\n"
 
         await context.bot.send_message(chat_id=chat_id, text=message)
 
