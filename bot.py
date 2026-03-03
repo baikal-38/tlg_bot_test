@@ -28,13 +28,47 @@ if not TOKEN:
 LATITUDE = 52.2978
 LONGITUDE = 104.2964
 
+def get_weather_icon(wmo_code: int) -> str:
+    """
+    Возвращает эмодзи для кода погоды WMO.
+    Коды согласно документации Open-Meteo: https://open-meteo.com/en/docs
+    """
+    if wmo_code == 0:
+        return "☀️"          # ясно
+    elif wmo_code == 1:
+        return "🌤"          # преимущественно ясно
+    elif wmo_code == 2:
+        return "⛅"          # переменная облачность
+    elif wmo_code == 3:
+        return "☁️"          # пасмурно
+    elif wmo_code in [45, 48]:
+        return "🌫"          # туман
+    elif wmo_code in [51, 53, 55, 56, 57]:
+        return "🌧"          # морось
+    elif wmo_code in [61, 63, 65, 66, 67, 80, 81, 82]:
+        return "🌧"          # дождь
+    elif wmo_code in [71, 73, 75, 77, 85, 86]:
+        return "🌨"          # снег
+    elif wmo_code in [95, 96, 99]:
+        return "⛈"          # гроза
+    else:
+        return "🌡"          # неизвестно
+
 def get_weather_forecast(days=3):
-    """Получение прогноза с open-meteo."""
+    """
+    Получение прогноза с open-meteo.
+    Возвращает кортеж: (dates, max_temps, min_temps, weathercodes, precip_sum)
+    """
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": LATITUDE,
         "longitude": LONGITUDE,
-        "daily": ["temperature_2m_max", "temperature_2m_min"],
+        "daily": [
+            "temperature_2m_max",
+            "temperature_2m_min",
+            "weathercode",
+            "precipitation_sum"
+        ],
         "timezone": "Asia/Irkutsk",
         "forecast_days": days
     }
@@ -45,10 +79,12 @@ def get_weather_forecast(days=3):
         dates = data['daily']['time']
         max_temps = data['daily']['temperature_2m_max']
         min_temps = data['daily']['temperature_2m_min']
-        return dates, max_temps, min_temps
+        weathercodes = data['daily']['weathercode']
+        precip_sum = data['daily']['precipitation_sum']
+        return dates, max_temps, min_temps, weathercodes, precip_sum
     except Exception as e:
         logger.error(f"Ошибка при получении погоды: {e}")
-        return None, None, None
+        return None, None, None, None, None
 
 def get_chart_image(dates, max_temps, min_temps):
     """Формирует и отправляет POST-запрос на QuickChart, возвращает байты PNG."""
@@ -108,7 +144,6 @@ def get_main_keyboard():
         ["🌤 Погода (текст)"],
         ["📈 График"]
     ]
-    # resize_keyboard=True подгоняет размер кнопок под экран
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def send_main_menu(chat_id, context: ContextTypes.DEFAULT_TYPE):
@@ -128,10 +163,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отправляет текстовый прогноз погоды, затем снова показывает меню."""
+    """Отправляет текстовый прогноз погоды (температура + осадки), затем снова показывает меню."""
     chat_id = update.effective_chat.id
     await context.bot.send_chat_action(chat_id=chat_id, action='typing')
-    dates, max_temps, min_temps = get_weather_forecast(days=16)
+    dates, max_temps, min_temps, weathercodes, precip_sum = get_weather_forecast(days=16)
 
     if dates is None:
         await context.bot.send_message(
@@ -142,7 +177,13 @@ async def weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = "🌤 Прогноз погоды в Иркутске:\n\n"
         for i in range(len(dates)):
             short_date = dates[i][5:]  # ММ-ДД
-            message += f"📅 {short_date}: {min_temps[i]}/{max_temps[i]}°C\n"
+            icon = get_weather_icon(weathercodes[i])
+            precip = precip_sum[i]
+            if precip and precip > 0:
+                precip_str = f"{precip:.1f} мм"
+            else:
+                precip_str = ""
+            message += f"{short_date}: {min_temps[i]}/{max_temps[i]} {icon} {precip_str}\n"
 
         await context.bot.send_message(chat_id=chat_id, text=message)
 
@@ -153,7 +194,8 @@ async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Строит и отправляет график температуры, затем снова показывает меню."""
     chat_id = update.effective_chat.id
     await context.bot.send_chat_action(chat_id=chat_id, action='upload_photo')
-    dates, max_temps, min_temps = get_weather_forecast(days=15)
+    # Нам нужны только даты и температуры, остальное игнорируем
+    dates, max_temps, min_temps, _, _ = get_weather_forecast(days=15)
 
     if dates is None:
         await context.bot.send_message(
@@ -190,7 +232,6 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает информацию о месте запуска бота."""
     lines = []
     
-    # Определяем платформу
     if os.getenv('RENDER'):
         lines.append("🚀 Платформа: **Render (облако)**")
         lines.append(f"• RENDER_EXTERNAL_URL: {os.getenv('RENDER_EXTERNAL_URL', 'не задан')}")
@@ -206,7 +247,6 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         lines.append("🔄 Режим polling (webhook не используется)")
     
-    # Общая информация
     hostname = socket.gethostname()
     lines.append(f"🖥️ Имя хоста: {hostname}")
     
@@ -216,10 +256,8 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines.append(f"⏰ Время сервера: {now}")
     
-    # Версия Python
     lines.append(f"🐍 Версия Python: {sys.version.split()[0]}")
     
-    # Отправляем результат
     await update.message.reply_text("\n".join(lines))
 
 async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -229,7 +267,6 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         await weather(update, context)
     elif text == "📈 График":
         await chart(update, context)
-    # Другие варианты текста игнорируем (можно добавить ответ по умолчанию)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
